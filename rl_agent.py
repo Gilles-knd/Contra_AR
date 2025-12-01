@@ -1,11 +1,11 @@
 import pickle
 import random
-from collections import defaultdict
+from collections import defaultdict, deque
 
 
 class QLearningAgent:
     """
-    Agent Q-Learning pour Contra RL
+    Enhanced Q-Learning Agent with Experience Replay for Contra RL
 
     Utilise la formule de Q-Learning :
     Q(s,a) ← Q(s,a) + α[r + γ·max_a' Q(s',a') - Q(s,a)]
@@ -16,26 +16,32 @@ class QLearningAgent:
     - ε (epsilon) = exploration rate (exploration vs exploitation)
     """
 
-    def __init__(self, actions=[0, 1, 2, 3, 4], alpha=0.1, gamma=0.95, epsilon=0.3):
+    def __init__(self, actions=[0, 1, 2, 3, 4], alpha=0.1, gamma=0.95, epsilon=0.5):
         """
-        Initialise l'agent Q-Learning
+        Initialise l'agent Q-Learning avec experience replay
 
         Args:
             actions: Actions possibles [0=LEFT, 1=RIGHT, 2=JUMP, 3=SHOOT, 4=IDLE]
             alpha: Learning rate (0.1 = apprentissage modéré)
             gamma: Discount factor (0.95 = valorise le futur)
-            epsilon: Exploration rate (0.3 = 30% exploration)
+            epsilon: Exploration rate (0.5 = 50% exploration initiale)
         """
         self.actions = actions
         self.alpha = alpha
         self.gamma = gamma
         self.epsilon = epsilon
         self.epsilon_min = 0.01  # Minimum d'exploration
-        self.epsilon_decay = 0.995  # Décroissance progressive
+        self.epsilon_decay = 0.9992  # FIXED: Much slower decay (was 0.995)
 
         # Q-table : dictionnaire {(état, action): Q-value}
         # Utilise defaultdict pour initialiser à 0 automatiquement
         self.q_table = defaultdict(float)
+
+        # NEW: Experience replay buffer
+        self.replay_buffer = deque(maxlen=10000)
+        self.replay_batch_size = 32
+        self.replay_frequency = 5  # Replay every N steps
+        self.step_counter = 0
 
     def choose_action(self, state, training=True):
         """
@@ -62,7 +68,7 @@ class QLearningAgent:
 
     def learn(self, state, action, reward, next_state, done):
         """
-        Mise à jour Q-Learning après une action
+        Mise à jour Q-Learning avec experience replay
 
         Formule : Q(s,a) ← Q(s,a) + α[r + γ·max_a' Q(s',a') - Q(s,a)]
 
@@ -73,6 +79,23 @@ class QLearningAgent:
             next_state: État après l'action
             done: True si l'épisode est terminé
         """
+        # Store experience in replay buffer
+        self.remember(state, action, reward, next_state, done)
+
+        # Immediate learning from current experience
+        self._update_q_value(state, action, reward, next_state, done)
+
+        # Periodic replay from buffer
+        self.step_counter += 1
+        if self.step_counter % self.replay_frequency == 0:
+            self.replay()
+
+    def remember(self, state, action, reward, next_state, done):
+        """Store experience in replay buffer."""
+        self.replay_buffer.append((state, action, reward, next_state, done))
+
+    def _update_q_value(self, state, action, reward, next_state, done):
+        """Update Q-value for a single experience."""
         # Q-value actuelle
         current_q = self.q_table[(state, action)]
 
@@ -87,6 +110,18 @@ class QLearningAgent:
 
         # Mise à jour de la Q-value
         self.q_table[(state, action)] = current_q + self.alpha * (target_q - current_q)
+
+    def replay(self):
+        """Learn from a batch of stored experiences."""
+        if len(self.replay_buffer) < self.replay_batch_size:
+            return
+
+        # Sample random batch
+        batch = random.sample(self.replay_buffer, self.replay_batch_size)
+
+        # Learn from each experience in batch
+        for state, action, reward, next_state, done in batch:
+            self._update_q_value(state, action, reward, next_state, done)
 
     def decay_epsilon(self):
         """Réduit epsilon après chaque épisode pour moins explorer avec le temps"""

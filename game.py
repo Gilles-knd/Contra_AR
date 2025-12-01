@@ -73,6 +73,10 @@ class ContraGame:
             self.last_actions.pop(0)
             self.last_x_positions.pop(0)
 
+        # Get bullet danger for smart oscillation detection
+        state_for_danger = self.get_state()
+        bullet_danger = state_for_danger[9]  # bullet_danger is 10th element (index 9)
+
         if len(self.last_actions) >= 10:
             direction_changes = 0
             for i in range(1, len(self.last_actions)):
@@ -81,21 +85,24 @@ class ContraGame:
                     direction_changes += 1
 
             net_progress = self.last_x_positions[-1] - self.last_x_positions[0]
-            if direction_changes > 4 and net_progress < 20:
-                reward -= 3.0
+            # Only penalize oscillation when NOT in bullet danger
+            if direction_changes > 4 and net_progress < 20 and bullet_danger == 0:
+                reward -= 2.0  # Reduced from 3.0
 
-        # Movement rewards
+        # REBALANCED: Movement rewards (more conservative)
         distance_moved = self.player.x - old_x
         if distance_moved > 2:
-            reward += 2.0
+            reward += 0.5  # Reduced from 2.0 to prevent reckless rushing
         elif distance_moved < -2:
-            reward -= 1.0
+            reward -= 0.2  # Reduced from 1.0
 
-        # Action rewards
+        # REBALANCED: Action rewards
         if action == 4:  # IDLE
-            reward -= 1.0
+            # Only penalize idle when safe
+            if bullet_danger == 0:
+                reward -= 0.1  # Reduced from 1.0
         elif action in [0, 1]:  # Movement
-            reward += 0.3
+            reward += 0.1  # Reduced from 0.3
 
         # Spawn enemies
         for enemy in self.enemies:
@@ -194,12 +201,50 @@ class ContraGame:
         return self.get_state(), reward, False
 
     def get_state(self):
-        """Get current game state for RL agent."""
-        # Position discretization
-        x_bucket = min(9, int(self.player.x / (self.level.flag_x / 10)))
+        """Get current game state for RL agent with enhanced state space."""
+        # ENHANCED: Position discretization (30 buckets instead of 10)
+        x_bucket = min(29, int(self.player.x / 100))  # 100px per bucket
 
         # On ground?
         on_ground = 1 if self.player.on_ground else 0
+
+        # NEW: Vertical velocity bucket (0=grounded, 1=rising, 2=falling)
+        if self.player.on_ground:
+            vel_y_bucket = 0
+        elif self.player.vel_y < -5:
+            vel_y_bucket = 1  # Rising (jumping)
+        else:
+            vel_y_bucket = 2  # Falling
+
+        # NEW: Horizontal velocity bucket (-1=left, 0=idle, 1=right)
+        if self.player.vel_x < -1:
+            vel_x_bucket = -1
+        elif self.player.vel_x > 1:
+            vel_x_bucket = 1
+        else:
+            vel_x_bucket = 0
+
+        # NEW: Near pit detection (-1=pit on left, 0=safe, 1=pit on right)
+        near_pit = 0
+        for pit in self.level.pits:
+            pit_distance = abs(pit.x - self.player.x)
+            if pit_distance < 200:
+                near_pit = 1 if pit.x > self.player.x else -1
+                break
+
+        # NEW: Ground ahead detection (0=pit/empty, 1=platform, 2=platform+enemy)
+        ground_ahead = 0
+        for platform in self.level.platforms:
+            if platform.x > self.player.x and platform.x < self.player.x + 200:
+                ground_ahead = 1
+                # Check for enemies on this platform
+                for enemy in self.enemies:
+                    if enemy.active and enemy.spawned:
+                        enemy_on_platform = (platform.x <= enemy.x <= platform.x + platform.width)
+                        if enemy_on_platform:
+                            ground_ahead = 2
+                            break
+                break
 
         # Enemy radar
         enemy_dist = 10
@@ -250,8 +295,9 @@ class ContraGame:
                 else:
                     bullet_height = 0
 
-        return (x_bucket, on_ground, enemy_dist, enemy_direction,
-                enemy_can_shoot, bullet_danger, bullet_height)
+        # Enhanced state tuple: 11 dimensions
+        return (x_bucket, on_ground, vel_y_bucket, vel_x_bucket, near_pit, ground_ahead,
+                enemy_dist, enemy_direction, enemy_can_shoot, bullet_danger, bullet_height)
 
     def render(self):
         """Render game graphics."""
