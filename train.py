@@ -4,14 +4,14 @@ from game import ContraGame
 from rl_agent import QLearningAgent
 
 
-def train(episodes=1000, continue_training=True):
+def train(episodes=1000, render_every=0, continue_training=True):
     """Train Q-Learning agent on Contra RL."""
     game = ContraGame()
     agent = QLearningAgent(
         actions=[0, 1, 2, 3, 4],
         alpha=0.1,
         gamma=0.95,
-        epsilon=0.5
+        epsilon=0
     )
 
     # Charger Q-table existante si demandé
@@ -199,9 +199,8 @@ def plot_training(rewards_history, wins, episodes, agent):
     plt.savefig('training.png', dpi=150, bbox_inches='tight')
     print(f"✅ Graphique sauvegardé : training.png")
 
-    # ✅ AFFICHER LE GRAPHIQUE
     plt.show()
 
 
 if __name__ == "__main__":
-    train(episodes=10000, continue_training=True)
+    train(episodes=5000, render_every=0, continue_training=True)

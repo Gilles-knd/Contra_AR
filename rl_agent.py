@@ -6,7 +6,7 @@ from collections import defaultdict, deque
 class QLearningAgent:
     """Enhanced Q-Learning Agent with Experience Replay."""
 
-    def __init__(self, actions=[0, 1, 2, 3, 4], alpha=0.1, gamma=0.95, epsilon=0.5):
+    def __init__(self, actions=[0, 1, 2, 3, 4], alpha=0.1, gamma=0.95, epsilon=0):
         """Initialize Q-Learning agent with experience replay."""
         self.actions = actions
         self.alpha = alpha

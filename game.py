@@ -205,7 +205,6 @@ class ContraGame:
         # ENHANCED: Position discretization (30 buckets instead of 10)
         x_bucket = min(29, int(self.player.x / 100))  # 100px per bucket
 
-        # On ground?
         on_ground = 1 if self.player.on_ground else 0
 
         # NEW: Vertical velocity bucket (0=grounded, 1=rising, 2=falling)
@@ -224,7 +223,6 @@ class ContraGame:
         else:
             vel_x_bucket = 0
 
-        # NEW: Near pit detection (-1=pit on left, 0=safe, 1=pit on right)
         near_pit = 0
         for pit in self.level.pits:
             pit_distance = abs(pit.x - self.player.x)
@@ -232,7 +230,6 @@ class ContraGame:
                 near_pit = 1 if pit.x > self.player.x else -1
                 break
 
-        # NEW: Ground ahead detection (0=pit/empty, 1=platform, 2=platform+enemy)
         ground_ahead = 0
         for platform in self.level.platforms:
             if platform.x > self.player.x and platform.x < self.player.x + 200:
