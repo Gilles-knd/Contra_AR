@@ -2,7 +2,7 @@
 
 import pygame
 from constants import (SCREEN_HEIGHT, PLAYER_SIZE, GRAVITY, JUMP_FORCE,
-                       PLAYER_SPEED, LEVEL_LENGTH, GREEN)
+                       PLAYER_SPEED, LEVEL_LENGTH, GREEN, PLAYER_MAX_LIVES)
 from entities.bullet import Bullet
 
 
@@ -17,7 +17,7 @@ class Player:
         self.vel_x = 0
         self.on_ground = False
         self.direction = 1
-        self.lives = 3  # PLAYER_MAX_LIVES from constants
+        self.lives = PLAYER_MAX_LIVES
         self.shoot_cooldown = 0
 
     def move(self, action):

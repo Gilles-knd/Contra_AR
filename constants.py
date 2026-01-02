@@ -33,3 +33,21 @@ WHITE = (255, 255, 255)
 GRAY = (128, 128, 128)
 ORANGE = (255, 165, 0)
 DARK_GRAY = (64, 64, 64)
+
+# ============================================================================
+# HYPERPARAMÈTRES Q-LEARNING (Modifiables pour Exploration/Exploitation)
+# ============================================================================
+
+# PHASE D'EXPLORATION (Début d'entraînement)
+# - EPSILON élevé (0.8-0.9) = beaucoup d'exploration
+# - ALPHA élevé (0.2-0.3) = apprentissage rapide
+# - GAMMA moyen (0.9-0.95) = équilibre présent/futur
+
+# PHASE D'EXPLOITATION (Après convergence ~95% Win%)
+# - EPSILON bas (0.0-0.1) = exploitation de la politique apprise
+# - ALPHA bas (0.01-0.05) = raffiner sans tout casser
+# - GAMMA élevé (0.95-0.99) = valoriser objectif long terme
+
+EPSILON = 0.8   # Taux d'exploration (0.0 = 100% exploitation, 1.0 = 100% exploration)
+ALPHA = 0.2     # Learning rate (0.0 = pas d'apprentissage, 1.0 = apprentissage immédiat)
+GAMMA = 0.8   # Discount factor (0.0 = ignorer futur, 1.0 = futur = présent)
