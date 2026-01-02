@@ -75,6 +75,7 @@ from constants import (
     GRAVITY, JUMP_FORCE, PLAYER_SPEED,
     PLAYER_SIZE, ENEMY_SIZE, BULLET_SIZE,
     LEVEL_LENGTH, PLAYER_MAX_LIVES,
+    ACTIONS, ACTION_LEFT, ACTION_RIGHT, ACTION_JUMP, ACTION_SHOOT, ACTION_IDLE,
     EPSILON, ALPHA, GAMMA  # Hyperparamètres Q-Learning
 )
 
@@ -90,21 +91,12 @@ from rendering.camera import Camera
 # ============================================================================
 MAX_STEPS = 5000  # Limite de steps par épisode
 
-# Actions
-ACTION_LEFT = 0
-ACTION_RIGHT = 1
-ACTION_JUMP = 2
-ACTION_SHOOT = 3
-ACTION_IDLE = 4
-
-ACTIONS = [ACTION_LEFT, ACTION_RIGHT, ACTION_JUMP, ACTION_SHOOT, ACTION_IDLE]
 
 # Rewards - Actions
 REWARD_SHOOT = 0  # Neutre (punition si rate, reward si touche)
 REWARD_PROGRESS = 5.0  # Vraie progression (augmenté 5x pour valoriser mouvement)
 REWARD_BACKWARD = -1.0  # Punition recul (augmentée 2x)
 REWARD_IDLE = -0.3  # Punition inactivité (augmentée 3x)
-REWARD_TIME_PENALTY = 0  # SUPPRIMÉ (contre-productif, encourageait vibration)
 
 # Rewards - Combat
 REWARD_ENEMY_HIT = 50  # Tuer ennemi
@@ -116,12 +108,13 @@ REWARD_DEATH = -50
 REWARD_GOAL = 1000
 REWARD_LIFE_BONUS = 100
 REWARD_TIMEOUT = -30
+REWARD_PIT = 30
 
 
 # ============================================================================
 # ENVIRONNEMENT (utilise les composants modulaires)
 # ============================================================================
-class ContraEnvironment:
+class Environment:
     """RL Environment using modular game components.
 
     State Space (11 dimensions):
@@ -182,11 +175,21 @@ class ContraEnvironment:
             self.player_bullets_shot.append(new_bullet)  # Track pour punir si rate
             reward += REWARD_SHOOT  # Neutre (0)
 
+
+
+
         # 2. PLAYER PHYSICS (delegate to Player)
         fell_off = self.player.update(self.level.platforms)
         if fell_off:
             self.game_over = True
             return self.get_state(), REWARD_DEATH, True
+
+        # Détection passage réussi d'un trou (pit)
+        for pit in self.level.pits:
+            # Si le joueur est passé par-dessus le trou entre old_x et self.player.x sans tomber
+            if old_x < pit.x < self.player.x and not fell_off:
+                reward += REWARD_PIT
+                break
 
         # 3. PROGRESSION REWARDS (basé sur max_x, pas juste mouvement)
         self.max_x = max(self.max_x, self.player.x)
@@ -199,9 +202,6 @@ class ContraEnvironment:
         # Punition pour recul
         elif self.player.x < old_x - 2:
             reward += REWARD_BACKWARD
-
-        # 4. TIME PENALTY (encourage vitesse)
-        reward += REWARD_TIME_PENALTY
 
         # 5. IDLE PENALTY
         if action == ACTION_IDLE:
@@ -573,7 +573,7 @@ class ContraWindow:
 # ============================================================================
 def train(episodes=1000, render_every=10):
     """Entraînement Q-Learning simplifié pour présentation académique"""
-    env = ContraEnvironment()
+    env = Environment()
     agent = Agent(env)
 
     # Charger si existe
@@ -775,7 +775,7 @@ def train(episodes=1000, render_every=10):
 def play(agent=None):
     """Jouer avec l'agent entraîné"""
     if agent is None:
-        env = ContraEnvironment()
+        env = Environment()
         agent = Agent(env)
         if os.path.exists("agent.pkl"):
             agent.load("agent.pkl")

@@ -2,7 +2,8 @@
 
 import pygame
 from constants import (SCREEN_HEIGHT, PLAYER_SIZE, GRAVITY, JUMP_FORCE,
-                       PLAYER_SPEED, LEVEL_LENGTH, GREEN, PLAYER_MAX_LIVES)
+                       PLAYER_SPEED, LEVEL_LENGTH, GREEN, PLAYER_MAX_LIVES, ACTION_LEFT, ACTION_RIGHT, ACTION_IDLE,
+                       ACTION_JUMP, ACTION_SHOOT)
 from entities.bullet import Bullet
 
 
@@ -22,20 +23,20 @@ class Player:
 
     def move(self, action):
         """Execute action: 0=LEFT, 1=RIGHT, 2=JUMP, 3=SHOOT, 4=IDLE."""
-        if action == 0:
+        if action == ACTION_LEFT:
             self.vel_x = -PLAYER_SPEED
             self.direction = -1
-        elif action == 1:
+        elif action == ACTION_RIGHT:
             self.vel_x = PLAYER_SPEED
             self.direction = 1
-        elif action == 4:
+        elif action == ACTION_IDLE:
             self.vel_x = 0
 
-        if action == 2 and self.on_ground:
+        if action == ACTION_JUMP and self.on_ground:
             self.vel_y = JUMP_FORCE
             self.on_ground = False
 
-        if action == 3:
+        if action == ACTION_SHOOT:
             return self.shoot()
         return None
 
