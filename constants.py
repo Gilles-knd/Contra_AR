@@ -57,6 +57,16 @@ DARK_GRAY = (64, 64, 64)
 # - ALPHA bas (0.01-0.05) = raffiner sans tout casser
 # - GAMMA élevé (0.95-0.99) = valoriser objectif long terme
 
-EPSILON = 0.8   # Taux d'exploration (0.0 = 100% exploitation, 1.0 = 100% exploration)
-ALPHA = 0.2     # Learning rate (0.0 = pas d'apprentissage, 1.0 = apprentissage immédiat)
-GAMMA = 0.8   # Discount factor (0.0 = ignorer futur, 1.0 = futur = présent)
+EPSILON = 0.3   # Taux d'exploration (0.0 = 100% exploitation, 1.0 = 100% exploration)
+ALPHA = 0.1    # Learning rate (0.0 = pas d'apprentissage, 1.0 = apprentissage immédiat)
+GAMMA = 1.0   # Discount factor (0.0 = ignorer futur, 1.0 = futur = présent)
+
+# ============================================================================
+# RADAR CONFIGURATION (Système d'observation 18D)
+# ============================================================================
+
+RADAR_RANGE_NEAR = 200      # Zone menace immédiate (px)
+RADAR_RANGE_MID = 400       # Zone menace moyenne (px)
+RADAR_RANGE_FAR = 600       # Zone planning/anticipation (px)
+BUCKET_SIZE = 50            # Discrétisation spatiale (px)
+GROUND_CHECK_AHEAD = 100    # Vérification continuité plateforme (px)
