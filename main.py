@@ -105,10 +105,9 @@ REWARD_WASTED_BULLET = -1  # Réduit (était trop punitif)
 
 # Rewards - Fin de partie
 REWARD_DEATH = -50
-REWARD_GOAL = 1000
-REWARD_LIFE_BONUS = 100
+REWARD_GOAL = 100
+REWARD_LIFE_BONUS = 30
 REWARD_TIMEOUT = -30
-REWARD_PIT = 30
 
 
 # ============================================================================
@@ -183,13 +182,6 @@ class Environment:
         if fell_off:
             self.game_over = True
             return self.get_state(), REWARD_DEATH, True
-
-        # Détection passage réussi d'un trou (pit)
-        for pit in self.level.pits:
-            # Si le joueur est passé par-dessus le trou entre old_x et self.player.x sans tomber
-            if old_x < pit.x < self.player.x and not fell_off:
-                reward += REWARD_PIT
-                break
 
         # 3. PROGRESSION REWARDS (basé sur max_x, pas juste mouvement)
         self.max_x = max(self.max_x, self.player.x)
