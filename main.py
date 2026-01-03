@@ -289,23 +289,177 @@ class ContraEnvironment:
         """Wrapper pour compatibilité avec Agent"""
         return self.step(action)
 
-    def get_state(self):
-        """État enrichi 11D."""
-        # 1. Position x (0-29)
-        x_bucket = min(29, int(self.player.x / 100))
+    def _observe_pits(self):
+        """Détection fossés avec largeur et sol restant."""
+        from constants import BUCKET_SIZE, RADAR_RANGE_FAR, PLAYER_SIZE
 
-        # 2. On ground (0-1)
+        # 1. Chercher fossé le plus proche (0-600px devant)
+        closest_pit = None
+        pit_distance = 0
+        pit_width = 0
+
+        for pit in self.level.pits:
+            dist = pit.x - self.player.x
+            if 0 < dist < RADAR_RANGE_FAR:
+                if closest_pit is None or dist < pit_distance:
+                    closest_pit = pit
+                    pit_distance = dist
+                    pit_width = pit.width
+
+        # Bucketing
+        pit_dist_bucket = min(12, int(pit_distance / BUCKET_SIZE)) if closest_pit else 0
+        pit_width_bucket = min(5, int(pit_width / BUCKET_SIZE) + 1) if closest_pit else 0
+
+        # 2. Sol sous les pieds (pixels avant le vide)
+        ground_under_feet = 0
+        for platform in self.level.platforms:
+            if platform.y <= self.player.y + PLAYER_SIZE <= platform.y + platform.height:
+                pixels_remaining = (platform.x + platform.width) - (self.player.x + PLAYER_SIZE)
+                if pixels_remaining > 0:
+                    if pixels_remaining < 30:
+                        ground_under_feet = 1
+                    elif pixels_remaining < 60:
+                        ground_under_feet = 2
+                    elif pixels_remaining < 100:
+                        ground_under_feet = 3
+                    else:
+                        ground_under_feet = 4
+                    break
+
+        return (pit_dist_bucket, pit_width_bucket, ground_under_feet)
+
+    def _observe_platforms(self):
+        """Analyser plateformes devant pour navigation."""
+        from constants import BUCKET_SIZE, RADAR_RANGE_FAR
+
+        platforms_ahead = [p for p in self.level.platforms
+                          if 0 < p.x - self.player.x < RADAR_RANGE_FAR]
+
+        if not platforms_ahead:
+            return (0, 0)
+
+        # Plateforme la plus proche
+        closest = min(platforms_ahead, key=lambda p: abs(p.x - self.player.x))
+        distance = closest.x - self.player.x
+
+        # Distance bucket
+        platform_ahead_dist = min(12, int(distance / BUCKET_SIZE))
+
+        # Hauteur relative
+        height_diff = self.player.y - closest.y
+        if height_diff < -80:
+            platform_ahead_height = 2    # Beaucoup plus haut
+        elif height_diff < -40:
+            platform_ahead_height = 1    # Plus haut
+        elif height_diff < 40:
+            platform_ahead_height = 0    # Même niveau
+        elif height_diff < 80:
+            platform_ahead_height = -1   # Plus bas
+        else:
+            platform_ahead_height = -2   # Beaucoup plus bas
+
+        return (platform_ahead_dist, platform_ahead_height)
+
+    def _observe_enemies(self):
+        """Tracker ennemis multiples avec type."""
+        from constants import BUCKET_SIZE, RADAR_RANGE_NEAR
+
+        spawned = [e for e in self.enemies if e.active and e.spawned]
+
+        if not spawned:
+            return (0, 0, 0)
+
+        # Ennemi le plus proche
+        closest = min(spawned, key=lambda e: abs(e.x - self.player.x))
+        distance = abs(closest.x - self.player.x)
+
+        closest_enemy_dist = min(12, int(distance / BUCKET_SIZE))
+        closest_enemy_type = 2 if closest.enemy_type in ['shooter', 'stationary'] else 1
+
+        # Comptage zone proche (<200px)
+        enemy_count_near = min(3, sum(1 for e in spawned
+                                      if abs(e.x - self.player.x) < RADAR_RANGE_NEAR))
+
+        return (closest_enemy_dist, closest_enemy_type, enemy_count_near)
+
+    def _observe_bullets(self):
+        """Tracker balles multiples incoming."""
+        from constants import BUCKET_SIZE
+
+        enemy_bullets = [b for b in self.bullets if b.owner == 'enemy' and b.active]
+
+        if not enemy_bullets:
+            return (0, 0, 0)
+
+        # Filtrer balles dangereuses (incoming + même hauteur)
+        dangerous = []
+        for b in enemy_bullets:
+            distance = abs(b.x - self.player.x)
+            coming = (b.direction == 1 and b.x < self.player.x) or \
+                    (b.direction == -1 and b.x > self.player.x)
+            same_height = abs(b.y - self.player.y) < 50
+
+            if coming and same_height:
+                dangerous.append((distance, b))
+
+        if not dangerous:
+            return (0, 0, 0)
+
+        # Trier par distance
+        dangerous.sort()
+        closest_dist = dangerous[0][0]
+
+        # Niveau danger
+        if closest_dist < 100:
+            bullet_danger_level = 3
+        elif closest_dist < 200:
+            bullet_danger_level = 2
+        elif closest_dist < 400:
+            bullet_danger_level = 1
+        else:
+            bullet_danger_level = 0
+
+        closest_bullet_dist = min(8, int(closest_dist / BUCKET_SIZE))
+        bullet_count = min(3, len(dangerous))
+
+        return (bullet_danger_level, closest_bullet_dist, bullet_count)
+
+    def _observe_goal(self):
+        """Direction et distance au drapeau."""
+        from constants import LEVEL_LENGTH
+
+        flag_x = LEVEL_LENGTH - 100  # Position approximative du drapeau
+
+        distance = flag_x - self.player.x
+
+        if distance < 0:
+            flag_direction = -1
+        elif distance < 50:
+            flag_direction = 0  # Atteint
+        else:
+            flag_direction = 1
+
+        flag_distance = min(10, int(abs(distance) / 300))
+
+        return (flag_direction, flag_distance)
+
+    def get_state(self):
+        """État enrichi 18D avec radar multi-menaces."""
+        from constants import BUCKET_SIZE
+
+        # A. Player state (5D)
+        x_bucket = min(59, int(self.player.x / BUCKET_SIZE))  # 50px buckets
         on_ground = 1 if self.player.on_ground else 0
 
-        # 3. Velocity Y bucket (0=ground, 1=rising, 2=falling)
+        # Velocity Y bucket (0=ground, 1=rising, 2=falling)
         if self.player.on_ground:
             vel_y_bucket = 0
         elif self.player.vel_y < -5:
-            vel_y_bucket = 1  # Rising (jumping)
+            vel_y_bucket = 1  # Rising
         else:
             vel_y_bucket = 2  # Falling
 
-        # 4. Velocity X bucket (-1=left, 0=idle, 1=right)
+        # Velocity X bucket (-1=left, 0=idle, 1=right)
         if self.player.vel_x < -1:
             vel_x_bucket = -1
         elif self.player.vel_x > 1:
@@ -313,66 +467,18 @@ class ContraEnvironment:
         else:
             vel_x_bucket = 0
 
-        # 5. Pit detection (-1=left, 0=none, 1=right)
-        near_pit = 0
-        for pit in self.level.pits:
-            if abs(pit.x - self.player.x) < 200:
-                near_pit = 1 if pit.x > self.player.x else -1
-                break
+        can_jump = 1 if self.player.on_ground else 0
 
-        # 6. Ground ahead (0=no, 1=yes, 2=enemy on platform)
-        ground_ahead = 0
-        for platform in self.level.platforms:
-            if self.player.x < platform.x < self.player.x + 200:
-                ground_ahead = 1
-                break
+        # B-F. Observation modules
+        pit_state = self._observe_pits()           # 3D: pit_distance, pit_width, ground_under_feet
+        platform_state = self._observe_platforms() # 2D: platform_ahead_dist, platform_ahead_height
+        enemy_state = self._observe_enemies()      # 3D: closest_enemy_dist, closest_enemy_type, enemy_count_near
+        bullet_state = self._observe_bullets()     # 3D: bullet_danger_level, closest_bullet_dist, bullet_count
+        goal_state = self._observe_goal()          # 2D: flag_direction, flag_distance
 
-        # 7-9. Enemy radar
-        enemy_dist = 10
-        enemy_direction = 0
-        enemy_can_shoot = 0
-
-        spawned = [e for e in self.enemies if e.active and e.spawned]
-        if spawned:
-            closest = min(spawned, key=lambda e: abs(e.x - self.player.x))
-            distance = abs(closest.x - self.player.x)
-            enemy_dist = min(9, int(distance / 100))
-            enemy_direction = 1 if closest.x > self.player.x else -1
-
-            if closest.enemy_type in ['shooter', 'stationary'] and distance < 400:
-                enemy_can_shoot = 1
-
-        # 10-11. Bullet danger
-        bullet_danger = 0
-        bullet_height = 0
-
-        enemy_bullets = [b for b in self.bullets if b.owner == 'enemy' and b.active]
-        if enemy_bullets:
-            dangerous = []
-            for b in enemy_bullets:
-                distance = abs(b.x - self.player.x)
-                coming = (b.direction == 1 and b.x < self.player.x) or \
-                        (b.direction == -1 and b.x > self.player.x)
-                same_height = abs(b.y - self.player.y) < 50
-
-                if coming and same_height:
-                    dangerous.append((distance, b))
-
-            if dangerous:
-                closest_dist, closest_bullet = min(dangerous)
-                if closest_dist < 100:
-                    bullet_danger = 2
-                elif closest_dist < 250:
-                    bullet_danger = 1
-
-                if closest_bullet.y < self.player.y:
-                    bullet_height = 1
-                elif closest_bullet.y > self.player.y + PLAYER_SIZE:
-                    bullet_height = -1
-
-        return (x_bucket, on_ground, vel_y_bucket, vel_x_bucket, near_pit,
-                ground_ahead, enemy_dist, enemy_direction, enemy_can_shoot,
-                bullet_danger, bullet_height)
+        # Retour état 18D (5 + 3 + 2 + 3 + 3 + 2 = 18)
+        return (x_bucket, on_ground, vel_y_bucket, vel_x_bucket, can_jump,
+                *pit_state, *platform_state, *enemy_state, *bullet_state, *goal_state)
 
 
 # ============================================================================
@@ -571,7 +677,7 @@ class ContraWindow:
 # ============================================================================
 # ENTRÂNEMENT ET EXÉCUTION (comme dans maze)
 # ============================================================================
-def train(episodes=1000, render_every=10):
+def train(episodes=1000, render_every=100):
     """Entraînement Q-Learning simplifié pour présentation académique"""
     env = ContraEnvironment()
     agent = Agent(env)
@@ -594,6 +700,11 @@ def train(episodes=1000, render_every=10):
     # Sauvegarder la taille initiale de l'historique pour les graphiques
     initial_history_size = len(agent.history)
 
+    # Créer fenêtre de rendering si nécessaire
+    window = None
+    if render_every > 0:
+        window = ContraWindow(agent, fps=60)
+
     for episode in range(episodes):
         state = agent.reset()
         done = False
@@ -601,11 +712,23 @@ def train(episodes=1000, render_every=10):
         steps = 0
         max_x = 0  # Tracking de la progression maximale
 
+        # Détermine si on affiche cet épisode
+        should_render = render_every > 0 and episode % render_every == 0
+
         while not done and steps < MAX_STEPS:
             # Affichage occasionnel
-            if render_every > 0 and episode % render_every == 0:
-                # Afficher rapidement
-                pass
+            if should_render and window:
+                # Gérer événements pygame pour éviter freeze
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        print("\nFermeture de la fenêtre détectée. Arrêt du training.")
+                        if window:
+                            pygame.quit()
+                        agent.save("agent.pkl")
+                        return
+
+                # Dessiner l'état actuel
+                window.draw()
 
             action = agent.best_action()
             next_state, reward, done = agent.do(action)
@@ -769,6 +892,11 @@ def train(episodes=1000, render_every=10):
     else:
         print("\n⚠ Pas de nouveaux épisodes à afficher dans les graphiques")
 
+    # Fermer la fenêtre pygame si elle existe
+    if window:
+        pygame.quit()
+        print("✓ Fenêtre de rendering fermée")
+
     return agent
 
 
@@ -806,12 +934,15 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         if sys.argv[1] == "train":
             episodes = int(sys.argv[2]) if len(sys.argv) > 2 else 1000
-            train(episodes=episodes, render_every=0)
+            render_every = int(sys.argv[3]) if len(sys.argv) > 3 else 0
+            train(episodes=episodes, render_every=render_every)
         elif sys.argv[1] == "play":
             play()
     else:
         # Mode interactif
         print("Usage:")
-        print("  python contra.py train [episodes]  # Entraîner l'agent")
-        print("  python contra.py play              # Jouer avec l'agent")
-        print("  python contra.py                   # Ce message")
+        print("  python main.py train [episodes] [render_every]  # Entraîner l'agent")
+        print("    Exemple: python main.py train 1000 50          # Affiche tous les 50 épisodes")
+        print("    Exemple: python main.py train 1000 0           # Pas d'affichage (rapide)")
+        print("  python main.py play                             # Jouer avec l'agent")
+        print("  python main.py                                  # Ce message")
