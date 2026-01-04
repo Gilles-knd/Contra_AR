@@ -64,6 +64,10 @@ HYPERPARAMÈTRES:
 import pygame
 import pickle
 import os
+import json
+from datetime import datetime
+import matplotlib
+matplotlib.use("Agg")  # Backend sans display pour l'entraînement headless
 import matplotlib.pyplot as plt
 from random import choice, random
 from collections import defaultdict
@@ -75,8 +79,9 @@ from constants import (
     GRAVITY, JUMP_FORCE, PLAYER_SPEED,
     PLAYER_SIZE, ENEMY_SIZE, BULLET_SIZE,
     LEVEL_LENGTH, PLAYER_MAX_LIVES,
+    RADAR_RANGE_NEAR, RADAR_RANGE_MID, RADAR_RANGE_FAR,
     ACTIONS, ACTION_LEFT, ACTION_RIGHT, ACTION_JUMP, ACTION_SHOOT, ACTION_IDLE,
-    EPSILON, ALPHA, GAMMA  # Hyperparamètres Q-Learning
+    EPSILON, EPSILON_DECAY, EPSILON_MIN, ALPHA, GAMMA  # Hyperparamètres Q-Learning
 )
 
 # Imports des composants modulaires
@@ -94,19 +99,21 @@ MAX_STEPS = 5000  # Limite de steps par épisode
 
 # Rewards - Actions
 REWARD_SHOOT = 0  # Neutre (punition si rate, reward si touche)
-REWARD_PROGRESS = 5.0  # Vraie progression (augmenté 5x pour valoriser mouvement)
-REWARD_BACKWARD = -1.0  # Punition recul (augmentée 2x)
-REWARD_IDLE = -0.3  # Punition inactivité (augmentée 3x)
+REWARD_PROGRESS = 8.0  # Valorise fortement la progression réelle
+REWARD_BACKWARD = -0.5  # Punition recul plus douce pour permettre corrections
+REWARD_IDLE = -0.1  # Laisser un peu de temps pour viser
 
 # Rewards - Combat
-REWARD_ENEMY_HIT = 50  # Tuer ennemi
+REWARD_ENEMY_HIT = 75  # Tuer ennemi (valorise le nettoyage)
 REWARD_DAMAGE = -30  # Augmenté pour éviter contact
-REWARD_WASTED_BULLET = -1  # Réduit (était trop punitif)
+REWARD_WASTED_BULLET = -3  # Tir qui ne touche pas
+REWARD_SHOOT_NO_TARGET = -3  # Tir alors qu'aucune menace proche
+REWARD_ENEMY_PASSED = -2  # Ennemi laissé en vie derrière soi sans bloquer la progression
 
 # Rewards - Fin de partie
 REWARD_DEATH = -50
-REWARD_GOAL = 100
-REWARD_LIFE_BONUS = 30
+REWARD_GOAL = 1200
+REWARD_LIFE_BONUS = 50
 REWARD_TIMEOUT = -30
 
 
@@ -173,6 +180,13 @@ class Environment:
             self.bullets.append(new_bullet)
             self.player_bullets_shot.append(new_bullet)  # Track pour punir si rate
             reward += REWARD_SHOOT  # Neutre (0)
+            # Tir inutile si aucune menace proche
+            nearest_enemy_dist = min(
+                (abs(e.x - self.player.x) for e in self.enemies if e.active and e.spawned),
+                default=None
+            )
+            if nearest_enemy_dist is None or nearest_enemy_dist > RADAR_RANGE_NEAR:
+                reward += REWARD_SHOOT_NO_TARGET
 
 
 
@@ -261,12 +275,17 @@ class Environment:
                                 reward += REWARD_ENEMY_HIT
                             break
 
+        # 7bis. Punir les ennemis laissés derrière (non éliminés)
+        for enemy in self.enemies:
+            if enemy.active and enemy.spawned and enemy.x < self.player.x - 250:
+                reward += REWARD_ENEMY_PASSED
+
         # 8. VICTORY CHECK
         flag_rect = pygame.Rect(self.level.flag_x, self.level.flag_y, 60, 60)
         if player_rect.colliderect(flag_rect):
             # Bonus vitesse: moins de steps = plus de points
             # Optimal ~1000 steps, max 5000
-            speed_bonus = max(0, (5000 - self.steps) / 10)  # 0-400 points
+            speed_bonus = max(0, (5000 - self.steps) / 5)  # 0-1000 points
             reward = REWARD_GOAL + (REWARD_LIFE_BONUS * self.player.lives) + speed_bonus
             self.victory = True
             return self.get_state(), reward, True
@@ -531,7 +550,7 @@ class Agent:
 
         # Q-learning
         old_q = self.qtable[state][action]
-        max_next_q = max(self.qtable[next_state].values())
+        max_next_q = 0 if done else max(self.qtable[next_state].values())
 
         # Formule: Q(s,a) = Q(s,a) + α[r + γ*maxQ(s',a') - Q(s,a)]
         new_q = old_q + self.alpha * (reward + self.gamma * max_next_q - old_q)
@@ -591,6 +610,8 @@ class ContraWindow:
         self.clock = pygame.time.Clock()
         self.font = pygame.font.Font(None, 36)
         self.small_font = pygame.font.Font(None, 24)
+        self.tiny_font = pygame.font.Font(None, 18)
+        self.debug_mode = False
 
     def draw(self):
         # Mise à jour de la caméra
@@ -622,12 +643,18 @@ class ContraWindow:
         state_text = self.small_font.render(f"State: {self.env.get_state()}", True, WHITE)
         qtable_text = self.small_font.render(f"Q-table: {len(self.agent.qtable)}", True, WHITE)
 
+        if self.debug_mode:
+            self._draw_debug_overlay(camera_x)
+
         self.screen.blit(lives_text, (10, 10))
         self.screen.blit(score_text, (10, 50))
         self.screen.blit(steps_text, (10, 90))
         self.screen.blit(progress_text, (10, 120))
         self.screen.blit(state_text, (10, 150))
         self.screen.blit(qtable_text, (10, 180))
+        if self.debug_mode:
+            debug_text = self.small_font.render("DEBUG: distances (D pour basculer)", True, BLUE)
+            self.screen.blit(debug_text, (10, 210))
 
         # Messages de fin
         if self.env.game_over:
@@ -639,6 +666,85 @@ class ContraWindow:
 
         pygame.display.flip()
         self.clock.tick(self.fps)
+
+    def _draw_debug_overlay(self, camera_x):
+        """Visual debugging: radar rings + distance lines to threats."""
+        player_rect = self.env.player.get_rect()
+        player_center = (int(player_rect.centerx - camera_x), int(player_rect.centery))
+
+        # Radar rings showing observation ranges
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        ring_colors = [
+            (0, 180, 255, 40),  # Near
+            (0, 255, 120, 30),  # Mid
+            (255, 220, 0, 25),  # Far
+        ]
+        for radius, color in zip(
+            [RADAR_RANGE_NEAR, RADAR_RANGE_MID, RADAR_RANGE_FAR], ring_colors
+        ):
+            pygame.draw.circle(overlay, color, player_center, radius, width=2)
+        self.screen.blit(overlay, (0, 0))
+
+        # Helper to draw a line with distance label at midpoint
+        def draw_distance_line(target_pos, color):
+            pygame.draw.line(self.screen, color, player_center, target_pos, width=2)
+            mid_x = (player_center[0] + target_pos[0]) // 2
+            mid_y = (player_center[1] + target_pos[1]) // 2
+            distance = ((player_center[0] - target_pos[0]) ** 2 + (player_center[1] - target_pos[1]) ** 2) ** 0.5
+            label = self.tiny_font.render(f"{int(distance)} px", True, color)
+            label_rect = label.get_rect(center=(mid_x, mid_y))
+            self.screen.blit(label, label_rect)
+
+        # Nearest enemy
+        active_enemies = [
+            e for e in self.env.enemies
+            if e.active and e.spawned
+        ]
+        if active_enemies:
+            nearest_enemy = min(active_enemies, key=lambda e: abs(e.x - self.env.player.x))
+            enemy_rect = nearest_enemy.get_rect()
+            enemy_center = (int(enemy_rect.centerx - camera_x), int(enemy_rect.centery))
+            draw_distance_line(enemy_center, ORANGE)
+
+        # Nearest pit (front-facing)
+        pits_ahead = [
+            pit for pit in self.env.level.pits
+            if pit.x + pit.width > self.env.player.x  # in front or under
+        ]
+        if pits_ahead:
+            nearest_pit = min(pits_ahead, key=lambda p: abs((p.x + p.width / 2) - self.env.player.x))
+            pit_rect = nearest_pit.get_rect()
+            pit_center = (int(pit_rect.centerx - camera_x), int(pit_rect.centery))
+            draw_distance_line(pit_center, BLUE)
+
+        # Nearest incoming bullet
+        active_bullets = [b for b in self.env.bullets if b.active]
+        if active_bullets:
+            nearest_bullet = min(active_bullets, key=lambda b: abs(b.x - self.env.player.x))
+            bullet_rect = nearest_bullet.get_rect()
+            bullet_center = (int(bullet_rect.centerx - camera_x), int(bullet_rect.centery))
+            draw_distance_line(bullet_center, YELLOW)
+
+        # Sol/plateforme sous les pieds et plus proche devant
+        player_rect = self.env.player.get_rect()
+        standing_platforms = [p for p in self.env.level.platforms if player_rect.colliderect(p.get_rect()) or (p.y >= player_rect.bottom and p.x - camera_x < SCREEN_WIDTH + 100)]
+        if standing_platforms:
+            # Distance verticale au sol actuel
+            current = min(standing_platforms, key=lambda p: abs(p.y - self.env.player.y))
+            ground_distance = max(0, current.y - player_rect.bottom)
+            label = self.tiny_font.render(f"Ground Δy: {int(ground_distance)}", True, WHITE)
+            self.screen.blit(label, (player_center[0] + 10, player_center[1] + 10))
+
+        # Plateforme la plus proche devant (pour anticiper)
+        platforms_ahead = [p for p in self.env.level.platforms if p.x > self.env.player.x]
+        if platforms_ahead:
+            nearest_plat = min(platforms_ahead, key=lambda p: p.x - self.env.player.x)
+            plat_rect = nearest_plat.get_rect()
+            plat_center = (int(plat_rect.centerx - camera_x), int(plat_rect.centery))
+            draw_distance_line(plat_center, GRAY)
+            plat_height_diff = self.env.player.y - nearest_plat.y
+            plat_label = self.tiny_font.render(f"Next plat Δy: {int(plat_height_diff)}", True, GRAY)
+            self.screen.blit(plat_label, (plat_center[0] - 40, plat_center[1] - 10))
 
     def run_episode(self):
         """Exécute un épisode complet"""
@@ -652,6 +758,8 @@ class ContraWindow:
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_q:
                         return False
+                    elif event.key == pygame.K_d:
+                        self.debug_mode = not self.debug_mode
 
             # Action de l'agent
             action = self.agent.best_action()
@@ -664,6 +772,26 @@ class ContraWindow:
 
     def close(self):
         pygame.quit()
+
+
+# ============================================================================
+# LOGGING UTILITIES
+# ============================================================================
+def append_training_log(entry, path="training_stats.json"):
+    """Append a training summary entry to JSON log."""
+    data = []
+    if os.path.exists(path) and os.path.getsize(path) > 0:
+        try:
+            with open(path, "r") as f:
+                data = json.load(f)
+                if not isinstance(data, list):
+                    data = []
+        except Exception:
+            data = []
+
+    data.append(entry)
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
 
 
 # ============================================================================
@@ -691,6 +819,8 @@ def train(episodes=1000, render_every=100):
 
     # Sauvegarder la taille initiale de l'historique pour les graphiques
     initial_history_size = len(agent.history)
+    initial_progress_size = len(agent.progress_history)
+    initial_win_size = len(agent.win_history)
 
     # Créer fenêtre de rendering si nécessaire
     window = None
@@ -718,6 +848,8 @@ def train(episodes=1000, render_every=100):
                             pygame.quit()
                         agent.save("agent.pkl")
                         return
+                    elif event.type == pygame.KEYDOWN and event.key == pygame.K_d:
+                        window.debug_mode = not window.debug_mode
 
                 # Dessiner l'état actuel
                 window.draw()
@@ -743,6 +875,9 @@ def train(episodes=1000, render_every=100):
         agent.progress_history.append(progress_pct)
         agent.win_history.append(1 if is_victory else 0)
 
+        # Décroissance epsilon (exploration) par épisode
+        agent.epsilon = max(EPSILON_MIN, agent.epsilon * EPSILON_DECAY)
+
         # Logs
         if episode % 50 == 0:
             metrics = agent.get_metrics()
@@ -765,14 +900,18 @@ def train(episodes=1000, render_every=100):
                   f"γ={agent.gamma:.3f}")
 
     # Sauvegarde conditionnelle: basée sur PROGRESSION MOYENNE (critère principal)
-    save_model = True
-    final_metrics = agent.get_metrics()
+    save_model = False
 
-    # Calculer progression moyenne du nouveau modèle
-    if len(agent.progress_history) > 0:
-        new_avg_progress = sum(agent.progress_history[-100:]) / min(100, len(agent.progress_history))
-    else:
-        new_avg_progress = 0
+    # Calculer progression moyenne du nouveau modèle (SESSION uniquement)
+    session_progress = agent.progress_history[initial_progress_size:]
+    session_wins = agent.win_history[initial_win_size:]
+
+    def avg_last_100(seq):
+        return sum(seq[-100:]) / min(100, len(seq)) if seq else 0
+
+    new_avg_progress = avg_last_100(session_progress)
+    new_win_rate = avg_last_100(session_wins) * 100
+    final_metrics = agent.get_metrics()
 
     if os.path.exists("agent.pkl"):
         # Charger ancien modèle pour comparaison
@@ -801,7 +940,6 @@ def train(episodes=1000, render_every=100):
             # Calculer aussi Win% pour affichage
             old_wins = sum(old_win_history[-100:]) if old_win_history else 0
             old_win_rate = (old_wins / min(100, len(old_win_history))) * 100 if old_win_history else 0
-            new_win_rate = final_metrics['win_rate']
 
             # CRITÈRE DE SAUVEGARDE: Progression moyenne (critère principal)
             # On sauvegarde si: nouvelle progression > ancienne progression
@@ -830,15 +968,45 @@ def train(episodes=1000, render_every=100):
     else:
         print(f"\n✓ Premier modèle → Sauvegarde dans agent.pkl")
         print(f"  Progression: {new_avg_progress:.1f}%, Win Rate: {final_metrics['win_rate']:.1f}%")
+        save_model = True
 
     if save_model:
         agent.save("agent.pkl")
+        final_metrics = agent.get_metrics()
         print(f"✓ Modèle sauvegardé (Win%={final_metrics['win_rate']:.1f}%)")
+
+    # Journaliser la session dans training_stats.json
+    log_entry = {
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "episodes": episodes,
+        "alpha": agent.alpha,
+        "gamma": agent.gamma,
+        "epsilon_start": EPSILON,
+        "epsilon_min": EPSILON_MIN,
+        "epsilon_decay": EPSILON_DECAY,
+        "rewards": {
+            "progress": REWARD_PROGRESS,
+            "backward": REWARD_BACKWARD,
+            "idle": REWARD_IDLE,
+            "enemy_hit": REWARD_ENEMY_HIT,
+            "enemy_passed": REWARD_ENEMY_PASSED,
+            "wasted_bullet": REWARD_WASTED_BULLET,
+            "shoot_no_target": REWARD_SHOOT_NO_TARGET,
+            "goal": REWARD_GOAL,
+            "life_bonus": REWARD_LIFE_BONUS,
+            "damage": REWARD_DAMAGE,
+        },
+        "session_win_rate": round(new_win_rate, 2),
+        "session_progress": round(new_avg_progress, 2),
+    }
+    append_training_log(log_entry)
 
     # Graphiques de présentation académique (3 panels) - SESSION ACTUELLE UNIQUEMENT
     if len(agent.history) > initial_history_size:
         # Extraire seulement les épisodes de cette session
         session_history = agent.history[initial_history_size:]
+        session_win_history = agent.win_history[initial_win_size:]
+        session_progress_history = agent.progress_history[initial_progress_size:]
 
         fig, axes = plt.subplots(1, 3, figsize=(18, 5))
 
@@ -854,11 +1022,13 @@ def train(episodes=1000, render_every=100):
 
         # Panel 2: Win rate glissant (100 épisodes) - SESSION ACTUELLE
         window = 100
-        if len(agent.win_history) > 0:
-            win_rate_rolling = [sum(agent.win_history[max(0, i-window):i]) / min(window, i) * 100
-                               for i in range(1, len(agent.win_history)+1)]
+        if len(session_win_history) > 0:
+            win_rate_rolling = [
+                sum(session_win_history[max(0, i-window):i]) / min(window, i) * 100
+                for i in range(1, len(session_win_history)+1)
+            ]
             axes[1].plot(win_rate_rolling, color='green')
-            axes[1].set_title(f'Taux de Victoire - Session Actuelle (fenêtre {window} eps)',
+            axes[1].set_title(f'Taux de Victoire - Session Actuelle ({len(session_win_history)} eps, fenêtre {window})',
                              fontsize=12, fontweight='bold')
             axes[1].set_xlabel('Épisode')
             axes[1].set_ylabel('Win Rate (%)')
@@ -867,9 +1037,9 @@ def train(episodes=1000, render_every=100):
             axes[1].grid(True, alpha=0.3)
 
         # Panel 3: Progression dans le niveau - SESSION ACTUELLE
-        if len(agent.progress_history) > 0:
-            axes[2].plot(agent.progress_history, color='purple', alpha=0.7)
-            axes[2].set_title('Progression dans Niveau - Session Actuelle',
+        if len(session_progress_history) > 0:
+            axes[2].plot(session_progress_history, color='purple', alpha=0.7)
+            axes[2].set_title(f'Progression dans Niveau - Session Actuelle ({len(session_progress_history)} eps)',
                              fontsize=12, fontweight='bold')
             axes[2].set_xlabel('Épisode')
             axes[2].set_ylabel('Progression (%)')

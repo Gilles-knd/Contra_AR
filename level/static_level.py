@@ -25,7 +25,6 @@ class StaticLevel:
         # SEGMENT 1 (0 → 600)
         plat1 = Platform(0, ground_y, 600)
         self.platforms.append(plat1)
-        self.enemies.append(Enemy(450, ground_y - ENEMY_SIZE, 'walker', plat1))
 
         # SEGMENT 2 (600 → 900)
         plat2 = Platform(600, ground_y, 300)
@@ -45,7 +44,6 @@ class StaticLevel:
         plat3 = Platform(1050, ground_y, 650)
         self.platforms.append(plat3)
         self.enemies.append(Enemy(1200, ground_y - ENEMY_SIZE, 'walker', plat3))
-        self.enemies.append(Enemy(1250, ground_y - ENEMY_SIZE, 'walker', plat3))
         self.enemies.append(Enemy(1400, ground_y - ENEMY_SIZE, 'shooter', plat3))
 
         # STAIRS (1700 → 2100)
