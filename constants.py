@@ -42,6 +42,12 @@ WHITE = (255, 255, 255)
 GRAY = (128, 128, 128)
 ORANGE = (255, 165, 0)
 DARK_GRAY = (64, 64, 64)
+SKY_TOP = (52, 152, 219)      # Bleu ciel haut
+SKY_BOTTOM = (135, 206, 235)  # Bleu ciel bas
+GROUND_BROWN = (120, 92, 72)
+GROUND_DARK = (90, 68, 52)
+FLAG_GREEN = (46, 204, 113)
+PURPLE = (155, 89, 182)
 
 # ============================================================================
 # HYPERPARAMÈTRES Q-LEARNING (Modifiables pour Exploration/Exploitation)

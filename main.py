@@ -75,13 +75,14 @@ from collections import defaultdict
 # Imports des constants centralisés
 from constants import (
     SCREEN_WIDTH, SCREEN_HEIGHT, FPS,
-    BLACK, WHITE, RED, GREEN, BLUE, ORANGE, GRAY, YELLOW,
+    BLACK, WHITE, RED, GREEN, BLUE, ORANGE, GRAY, YELLOW, PURPLE,
+    SKY_TOP, SKY_BOTTOM, GROUND_BROWN, GROUND_DARK, FLAG_GREEN,
     GRAVITY, JUMP_FORCE, PLAYER_SPEED,
     PLAYER_SIZE, ENEMY_SIZE, BULLET_SIZE,
     LEVEL_LENGTH, PLAYER_MAX_LIVES,
     RADAR_RANGE_NEAR, RADAR_RANGE_MID, RADAR_RANGE_FAR,
     ACTIONS, ACTION_LEFT, ACTION_RIGHT, ACTION_JUMP, ACTION_SHOOT, ACTION_IDLE,
-    EPSILON, EPSILON_DECAY, EPSILON_MIN, ALPHA, GAMMA  # Hyperparamètres Q-Learning
+    EPSILON, EPSILON_DECAY, EPSILON_MIN, ALPHA, GAMMA, DARK_GRAY  # Hyperparamètres Q-Learning
 )
 
 # Imports des composants modulaires
@@ -618,7 +619,7 @@ class ContraWindow:
         self.env.camera.update(self.env.player.x)
         camera_x = self.env.camera.get_x()
 
-        self.screen.fill(BLACK)
+        self.env.level.draw_background(self.screen, camera_x)
 
         # Déléguer le dessin aux entités
         self.env.level.draw(self.screen, camera_x)
@@ -633,7 +634,6 @@ class ContraWindow:
                 bullet.draw(self.screen, camera_x)
 
         # UI enrichie
-        lives_text = self.font.render(f"Vies: {self.env.player.lives}", True, WHITE)
         score_text = self.font.render(f"Score: {self.agent.score:.1f}", True, WHITE)
         steps_text = self.small_font.render(f"Steps: {self.env.steps}", True, WHITE)
 
@@ -646,15 +646,32 @@ class ContraWindow:
         if self.debug_mode:
             self._draw_debug_overlay(camera_x)
 
-        self.screen.blit(lives_text, (10, 10))
-        self.screen.blit(score_text, (10, 50))
-        self.screen.blit(steps_text, (10, 90))
-        self.screen.blit(progress_text, (10, 120))
-        self.screen.blit(state_text, (10, 150))
-        self.screen.blit(qtable_text, (10, 180))
+        # Life bar on the right with heart icon
+        bar_width = 160
+        bar_height = 16
+        life_ratio = self.env.player.lives / PLAYER_MAX_LIVES
+        bar_x = SCREEN_WIDTH - bar_width - 30
+        bar_y = 20
+        # Heart icon
+        heart_points = [
+            (bar_x - 18, bar_y + 8),
+            (bar_x - 12, bar_y + 2),
+            (bar_x - 6, bar_y + 8),
+            (bar_x - 12, bar_y + 14),
+        ]
+        pygame.draw.polygon(self.screen, RED, heart_points)
+
+        pygame.draw.rect(self.screen, DARK_GRAY, (bar_x, bar_y, bar_width, bar_height), border_radius=6)
+        pygame.draw.rect(self.screen, RED, (bar_x, bar_y, int(bar_width * life_ratio), bar_height), border_radius=6)
+
+        self.screen.blit(score_text, (10, 10))
+        self.screen.blit(steps_text, (10, 50))
+        self.screen.blit(progress_text, (10, 80))
+        self.screen.blit(state_text, (10, 110))
+        self.screen.blit(qtable_text, (10, 140))
         if self.debug_mode:
             debug_text = self.small_font.render("DEBUG: distances (D pour basculer)", True, BLUE)
-            self.screen.blit(debug_text, (10, 210))
+            self.screen.blit(debug_text, (10, 170))
 
         # Messages de fin
         if self.env.game_over:
