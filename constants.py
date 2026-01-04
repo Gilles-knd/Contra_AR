@@ -86,17 +86,17 @@ GROUND_CHECK_AHEAD = 100    # Vérification continuité plateforme (px)
 MAX_STEPS = 5000  # Limite de steps par épisode
 
 # Rewards - Actions
-REWARD_SHOOT = 0  # Neutre (punition si rate, reward si touche)
-REWARD_PROGRESS = 8.0  # Valorise fortement la progression réelle
-REWARD_BACKWARD = -0.5  # Punition recul plus douce pour permettre corrections
-REWARD_IDLE = -0.1  # Laisser un peu de temps pour viser
+REWARD_SHOOT = 0
+REWARD_PROGRESS = 8.0
+REWARD_BACKWARD = -0.5
+REWARD_IDLE = -0.1
 
 # Rewards - Combat
-REWARD_ENEMY_HIT = 75  # Tuer ennemi (valorise le nettoyage)
-REWARD_DAMAGE = -30  # Augmenté pour éviter contact
-REWARD_WASTED_BULLET = -3  # Tir qui ne touche pas
-REWARD_SHOOT_NO_TARGET = -3  # Tir alors qu'aucune menace proche
-REWARD_ENEMY_PASSED = -2  # Ennemi laissé en vie derrière soi
+REWARD_ENEMY_HIT = 75
+REWARD_DAMAGE = -30
+REWARD_WASTED_BULLET = -3
+REWARD_SHOOT_NO_TARGET = -3
+REWARD_ENEMY_PASSED = -2
 
 # Rewards - Fin de partie
 REWARD_DEATH = -50
