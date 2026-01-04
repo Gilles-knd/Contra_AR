@@ -56,29 +56,25 @@ class ContraWindow:
         if self.debug_mode:
             self._draw_debug_overlay(camera_x)
 
-        # Life bar on the right with heart icon
-        bar_width = 160
-        bar_height = 16
-        life_ratio = self.env.player.lives / PLAYER_MAX_LIVES
-        bar_x = SCREEN_WIDTH - bar_width - 30
+        # Life icons on the right (3 rectangles)
+        icon_size = 18
+        padding = 6
+        bar_x = SCREEN_WIDTH - (icon_size + padding) * PLAYER_MAX_LIVES - 30
         bar_y = 20
-        # Heart icon
-        heart_points = [
-            (bar_x - 18, bar_y + 8),
-            (bar_x - 12, bar_y + 2),
-            (bar_x - 6, bar_y + 8),
-            (bar_x - 12, bar_y + 14),
-        ]
-        pygame.draw.polygon(self.screen, RED, heart_points)
-
-        pygame.draw.rect(self.screen, DARK_GRAY, (bar_x, bar_y, bar_width, bar_height), border_radius=6)
-        pygame.draw.rect(self.screen, RED, (bar_x, bar_y, int(bar_width * life_ratio), bar_height), border_radius=6)
+        lives_label = self.small_font.render("Vies", True, WHITE)
+        self.screen.blit(lives_label, (bar_x - lives_label.get_width() - 8, bar_y + 2))
+        for i in range(PLAYER_MAX_LIVES):
+            x = bar_x + i * (icon_size + padding)
+            color = RED if i < self.env.player.lives else DARK_GRAY
+            pygame.draw.rect(self.screen, color, (x, bar_y, icon_size, icon_size), border_radius=3)
+            pygame.draw.rect(self.screen, WHITE, (x, bar_y, icon_size, icon_size), width=1, border_radius=3)
 
         self.screen.blit(score_text, (10, 10))
         self.screen.blit(steps_text, (10, 50))
         self.screen.blit(progress_text, (10, 80))
         self.screen.blit(state_text, (10, 110))
         self.screen.blit(qtable_text, (10, 140))
+
         if self.debug_mode:
             debug_text = self.small_font.render("DEBUG: distances (D pour basculer)", True, BLUE)
             self.screen.blit(debug_text, (10, 170))
