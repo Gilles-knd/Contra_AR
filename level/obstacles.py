@@ -1,6 +1,9 @@
 """Obstacles (platforms, pits) for Contra RL game."""
 
 import pygame
+from arcade.csscolor import DARK_GREEN
+from arcade.uicolor import GREEN_NEPHRITIS
+
 from constants import PLATFORM_HEIGHT, SCREEN_HEIGHT, GRAY, BLACK, RED, GROUND_BROWN, GROUND_DARK
 
 
@@ -20,13 +23,16 @@ class Platform:
     def draw(self, screen, camera_x):
         """Draw platform on screen."""
         screen_x = self.x - camera_x
+
         # Base
-        pygame.draw.rect(screen, GROUND_BROWN, (screen_x, self.y, self.width, self.height))
+        pygame.draw.rect(screen, GREEN_NEPHRITIS, (screen_x, self.y, self.width, self.height))
+
         # Edge shading
-        pygame.draw.rect(screen, GROUND_DARK, (screen_x, self.y + self.height - 4, self.width, 4))
+        pygame.draw.rect(screen, DARK_GREEN, (screen_x, self.y + self.height - 4, self.width, 4))
+
         # Top texture stripes
         for i in range(int(self.width // 20)):
-            pygame.draw.line(screen, GRAY, (screen_x + i * 20, self.y + 4),
+            pygame.draw.line(screen, DARK_GREEN, (screen_x + i * 20, self.y + 4),
                              (screen_x + i * 20 + 10, self.y + 4), 2)
 
 

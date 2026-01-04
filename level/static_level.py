@@ -17,9 +17,11 @@ class StaticLevel:
         self.platforms = []
         self.pits = []
         self.enemies = []
+
         # Flag positioned on last platform
         self.flag_x = LEVEL_LENGTH - 150
         self.flag_y = SCREEN_HEIGHT - PLATFORM_HEIGHT - 60
+
         # Clouds for parallax background
         self.clouds = [
             (200, 80, 70),
@@ -29,6 +31,7 @@ class StaticLevel:
             (2100, 110, 75),
             (2600, 100, 80)
         ]
+
         # Optional background/flag textures
         assets_dir = os.path.join(os.path.dirname(__file__), "..", "assets")
         bg_path = os.path.join(assets_dir, "background.png")
