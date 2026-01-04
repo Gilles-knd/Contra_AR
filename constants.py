@@ -63,11 +63,11 @@ PURPLE = (155, 89, 182)
 # - ALPHA bas (0.01-0.05) = raffiner sans tout casser
 # - GAMMA élevé (0.95-0.99) = valoriser objectif long terme
 
-EPSILON = 0.3   # Taux d'exploration (0.0 = 100% exploitation, 1.0 = 100% exploration)
-ALPHA = 0.05    # Learning rate (0.0 = pas d'apprentissage, 1.0 = apprentissage immédiat)
+EPSILON = 0.2   # Taux d'exploration (0.0 = 100% exploitation, 1.0 = 100% exploration)
+ALPHA = 0.07    # Learning rate (0.0 = pas d'apprentissage, 1.0 = apprentissage immédiat)
 GAMMA = 0.97   # Discount factor (0.0 = ignorer futur, 1.0 = futur = présent)
-EPSILON_DECAY = 0.9995  # Décroissance plus lente
-EPSILON_MIN = 0.02     # Exploration minimale pour éviter l'exploitation totale
+EPSILON_DECAY = 0.5  # Décroissance plus lente
+EPSILON_MIN = 0.03     # Exploration minimale pour éviter l'exploitation totale
 
 # ============================================================================
 # RADAR CONFIGURATION (Système d'observation 18D)
