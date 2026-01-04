@@ -1,4 +1,3 @@
-"""Obstacles (platforms, pits) for Contra RL game."""
 
 import pygame
 from arcade.csscolor import DARK_GREEN
@@ -8,7 +7,6 @@ from constants import PLATFORM_HEIGHT, SCREEN_HEIGHT, GRAY, BLACK, RED, GROUND_B
 
 
 class Platform:
-    """Solid platform for player and enemies."""
 
     def __init__(self, x, y, width, height=PLATFORM_HEIGHT):
         self.x = x
@@ -17,11 +15,11 @@ class Platform:
         self.height = height
 
     def get_rect(self):
-        """Get collision rectangle."""
+        """collision rectangle."""
         return pygame.Rect(self.x, self.y, self.width, self.height)
 
     def draw(self, screen, camera_x):
-        """Draw platform on screen."""
+        """désinner les plateformes à l'écran"""
         screen_x = self.x - camera_x
 
         # Base
@@ -30,14 +28,14 @@ class Platform:
         # Edge shading
         pygame.draw.rect(screen, DARK_GREEN, (screen_x, self.y + self.height - 4, self.width, 4))
 
-        # Top texture stripes
+        # Hachures
         for i in range(int(self.width // 20)):
             pygame.draw.line(screen, DARK_GREEN, (screen_x + i * 20, self.y + 4),
                              (screen_x + i * 20 + 10, self.y + 4), 2)
 
 
 class Pit:
-    """Deadly pit (instant death)."""
+    """Trou mortel"""
 
     def __init__(self, x, width):
         self.x = x
@@ -46,12 +44,10 @@ class Pit:
         self.height = 50
 
     def get_rect(self):
-        """Get collision rectangle."""
+        """Get le rectangle de collision"""
         return pygame.Rect(self.x, self.y, self.width, self.height)
 
     def draw(self, screen, camera_x):
-        """Draw pit as transparent gap (background shows through)."""
-        # No fill: just leave empty so background is visible.
-        # Optional rim to hint danger:
+        """Afficher le trou (transparent)"""
         screen_x = self.x - camera_x
         pygame.draw.rect(screen, RED, (screen_x, self.y, self.width, 0))

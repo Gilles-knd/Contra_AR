@@ -1,4 +1,3 @@
-"""Static level definition for Contra RL game."""
 
 import pygame
 from constants import (
@@ -11,18 +10,17 @@ import os
 
 
 class StaticLevel:
-    """Static level with platforms, enemies, pits, and flag."""
 
     def __init__(self):
         self.platforms = []
         self.pits = []
         self.enemies = []
 
-        # Flag positioned on last platform
+        # Position du Drapeau sur la dernière plateforme
         self.flag_x = LEVEL_LENGTH - 150
         self.flag_y = SCREEN_HEIGHT - PLATFORM_HEIGHT - 60
 
-        # Clouds for parallax background
+        # Nuage pour un effet paralax
         self.clouds = [
             (200, 80, 70),
             (600, 120, 60),
@@ -41,7 +39,6 @@ class StaticLevel:
         self.generate_static_level()
 
     def generate_static_level(self):
-        """Generate the complete static level layout."""
         ground_y = SCREEN_HEIGHT - PLATFORM_HEIGHT
 
         # SEGMENT 1 (0 → 600)
@@ -90,7 +87,7 @@ class StaticLevel:
         self.platforms.append(final_plat)
 
     def draw_background(self, screen, camera_x):
-        """Draw sky gradient, clouds, and distant ground."""
+        """Déssiner le gradient du ciel, les nuages, et le sol distant"""
         if self.bg_image:
             # Tile horizontally
             img_width = self.bg_image.get_width()
@@ -108,7 +105,6 @@ class StaticLevel:
 
         # Distant ground band
         horizon_y = SCREEN_HEIGHT - 120
-        #pygame.draw.rect(screen, GROUND_DARK, (0, horizon_y, SCREEN_WIDTH, 140))
 
         # Clouds (parallax)
         for cx, cy, size in self.clouds:
@@ -125,7 +121,6 @@ class StaticLevel:
         pygame.draw.rect(screen, WHITE, (int(x - size * 0.6), int(y), int(size * 1.2), int(size * 0.4)))
 
     def draw(self, screen, camera_x):
-        """Draw all level elements (foreground)."""
         # Draw platforms
         for platform in self.platforms:
             platform.draw(screen, camera_x)

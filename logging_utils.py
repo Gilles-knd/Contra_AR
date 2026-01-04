@@ -1,5 +1,3 @@
-"""Logging utilities for training statistics."""
-
 import json
 import os
 

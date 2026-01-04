@@ -1,5 +1,3 @@
-"""Pygame window for rendering Contra RL game."""
-
 import pygame
 from constants import (
     SCREEN_WIDTH, SCREEN_HEIGHT, FPS,
@@ -11,7 +9,6 @@ from constants import MAX_STEPS
 
 
 class ContraWindow:
-    """Pygame window with Camera and delegation to game entities."""
 
     def __init__(self, agent, fps=30):
         self.agent = agent
@@ -125,7 +122,7 @@ class ContraWindow:
             label_rect = label.get_rect(center=(mid_x, mid_y))
             self.screen.blit(label, label_rect)
 
-        # Nearest enemy
+        # enemy le plus proche
         active_enemies = [
             e for e in self.env.enemies
             if e.active and e.spawned
@@ -136,7 +133,7 @@ class ContraWindow:
             enemy_center = (int(enemy_rect.centerx - camera_x), int(enemy_rect.centery))
             draw_distance_line(enemy_center, ORANGE)
 
-        # Nearest pit (front-facing)
+        # Le trou le plus proche (en face)
         pits_ahead = [
             pit for pit in self.env.level.pits
             if pit.x + pit.width > self.env.player.x  # in front or under
@@ -147,7 +144,7 @@ class ContraWindow:
             pit_center = (int(pit_rect.centerx - camera_x), int(pit_rect.centery))
             draw_distance_line(pit_center, BLUE)
 
-        # Nearest incoming bullet
+        # La balle la plus proche arrivant
         active_bullets = [b for b in self.env.bullets if b.active]
         if active_bullets:
             nearest_bullet = min(active_bullets, key=lambda b: abs(b.x - self.env.player.x))

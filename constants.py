@@ -1,5 +1,3 @@
-"""Game constants for Contra RL."""
-
 # Screen settings
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
@@ -50,22 +48,11 @@ FLAG_GREEN = (46, 204, 113)
 PURPLE = (155, 89, 182)
 
 # ============================================================================
-# HYPERPARAMÈTRES Q-LEARNING (Modifiables pour Exploration/Exploitation)
+# HYPERPARAMÈTRES Q-LEARNING
 # ============================================================================
-
-# PHASE D'EXPLORATION (Début d'entraînement)
-# - EPSILON élevé (0.8-0.9) = beaucoup d'exploration
-# - ALPHA élevé (0.2-0.3) = apprentissage rapide
-# - GAMMA moyen (0.9-0.95) = équilibre présent/futur
-
-# PHASE D'EXPLOITATION (Après convergence ~95% Win%)
-# - EPSILON bas (0.0-0.1) = exploitation de la politique apprise
-# - ALPHA bas (0.01-0.05) = raffiner sans tout casser
-# - GAMMA élevé (0.95-0.99) = valoriser objectif long terme
-
-EPSILON = 0.3   # Taux d'exploration (0.0 = 100% exploitation, 1.0 = 100% exploration)
-ALPHA = 0.05    # Learning rate (0.0 = pas d'apprentissage, 1.0 = apprentissage immédiat)
-GAMMA = 0.97   # Discount factor (0.0 = ignorer futur, 1.0 = futur = présent)
+EPSILON = 0.3   # Taux d'exploration
+ALPHA = 0.05    # Learning rate
+GAMMA = 0.97   # Discount factor
 EPSILON_DECAY = 0.9995  # Décroissance plus lente
 EPSILON_MIN = 0.02     # Exploration minimale pour éviter l'exploitation totale
 

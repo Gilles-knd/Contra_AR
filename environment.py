@@ -1,5 +1,3 @@
-"""RL Environment using modular game components."""
-
 import pygame
 from constants import (
     PLAYER_SIZE, RADAR_RANGE_NEAR, RADAR_RANGE_FAR, RADAR_RANGE_MID,
@@ -17,21 +15,6 @@ from rendering.camera import Camera
 
 
 class Environment:
-    """RL Environment using modular game components.
-
-    State Space (18 dimensions):
-    - x_bucket: Position (0-59, 50px per bucket)
-    - on_ground: On platform (0-1)
-    - vel_y_bucket: Vertical velocity (0=ground, 1=rising, 2=falling)
-    - vel_x_bucket: Horizontal velocity (-1=left, 0=idle, 1=right)
-    - can_jump: Can jump (0-1)
-    - pit_dist_bucket, pit_width_bucket, ground_under_feet: Pit detection (3D)
-    - platform_ahead_dist, platform_ahead_height: Platform ahead (2D)
-    - closest_enemy_dist, closest_enemy_type, enemy_count_near: Enemy tracking (3D)
-    - bullet_danger_level, closest_bullet_dist, bullet_count: Bullet tracking (3D)
-    - flag_direction, flag_distance: Goal tracking (2D)
-    """
-
     def __init__(self):
         # Utiliser StaticLevel au lieu du parsing ASCII
         self.level = StaticLevel()
