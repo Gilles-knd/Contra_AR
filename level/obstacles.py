@@ -1,7 +1,10 @@
 """Obstacles (platforms, pits) for Contra RL game."""
 
 import pygame
-from constants import PLATFORM_HEIGHT, SCREEN_HEIGHT, GRAY, BLACK, RED
+from arcade.csscolor import DARK_GREEN
+from arcade.uicolor import GREEN_NEPHRITIS
+
+from constants import PLATFORM_HEIGHT, SCREEN_HEIGHT, GRAY, BLACK, RED, GROUND_BROWN, GROUND_DARK
 
 
 class Platform:
@@ -20,7 +23,17 @@ class Platform:
     def draw(self, screen, camera_x):
         """Draw platform on screen."""
         screen_x = self.x - camera_x
-        pygame.draw.rect(screen, GRAY, (screen_x, self.y, self.width, self.height))
+
+        # Base
+        pygame.draw.rect(screen, GREEN_NEPHRITIS, (screen_x, self.y, self.width, self.height))
+
+        # Edge shading
+        pygame.draw.rect(screen, DARK_GREEN, (screen_x, self.y + self.height - 4, self.width, 4))
+
+        # Top texture stripes
+        for i in range(int(self.width // 20)):
+            pygame.draw.line(screen, DARK_GREEN, (screen_x + i * 20, self.y + 4),
+                             (screen_x + i * 20 + 10, self.y + 4), 2)
 
 
 class Pit:
@@ -37,12 +50,8 @@ class Pit:
         return pygame.Rect(self.x, self.y, self.width, self.height)
 
     def draw(self, screen, camera_x):
-        """Draw pit on screen with danger pattern."""
+        """Draw pit as transparent gap (background shows through)."""
+        # No fill: just leave empty so background is visible.
+        # Optional rim to hint danger:
         screen_x = self.x - camera_x
-        pygame.draw.rect(screen, BLACK, (screen_x, self.y, self.width, self.height))
-
-        # Danger lines
-        for i in range(0, self.width, 20):
-            pygame.draw.line(screen, RED,
-                             (screen_x + i, self.y),
-                             (screen_x + i + 15, self.y + self.height), 2)
+        pygame.draw.rect(screen, RED, (screen_x, self.y, self.width, 0))

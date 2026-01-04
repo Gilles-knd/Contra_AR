@@ -1,8 +1,28 @@
 """Enemy entity for Contra RL game."""
 
+import os
 import pygame
-from constants import ENEMY_SIZE, ENEMY_SPEED, ENEMY_SHOOT_RANGE, RED, ORANGE
+from constants import ENEMY_SIZE, ENEMY_SPEED, ENEMY_SHOOT_RANGE, RED, ORANGE, PURPLE, WHITE, DARK_GRAY
 from entities.bullet import Bullet
+
+
+_enemy_sprite_cache = {}
+
+
+def _load_sprite(name, size):
+    """Load enemy sprite if present; cache results."""
+    key = (name, size)
+    if key in _enemy_sprite_cache:
+        return _enemy_sprite_cache[key]
+    assets_dir = os.path.join(os.path.dirname(__file__), "..", "assets")
+    path = os.path.join(assets_dir, name)
+    if os.path.exists(path):
+        img = pygame.image.load(path).convert_alpha()
+        img = pygame.transform.scale(img, (size, size))
+        _enemy_sprite_cache[key] = img
+        return img
+    _enemy_sprite_cache[key] = None
+    return None
 
 
 class Enemy:
@@ -20,6 +40,13 @@ class Enemy:
         self.spawned = False
         self.direction = -1
         self.platform = platform
+        # Optional sprite by type
+        sprite_name = {
+            'walker': 'enemy_walker.png',
+            'shooter': 'enemy_shooter.png',
+            'stationary': 'enemy_stationary.png'
+        }.get(enemy_type, 'enemy_walker.png')
+        self.sprite = _load_sprite(sprite_name, self.size)
 
     def update(self, player_x, player_y):
         """Update enemy behavior and shooting."""
@@ -76,5 +103,20 @@ class Enemy:
             return
 
         screen_x = self.x - camera_x
-        color = RED if self.enemy_type == 'walker' else ORANGE
-        pygame.draw.rect(screen, color, (int(screen_x), int(self.y), self.size, self.size))
+        base_rect = pygame.Rect(int(screen_x), int(self.y), self.size, self.size)
+
+        if self.sprite:
+            screen.blit(self.sprite, (base_rect.x, base_rect.y))
+        else:
+            if self.enemy_type == 'walker':
+                pygame.draw.rect(screen, RED, base_rect, border_radius=3)
+                pygame.draw.rect(screen, DARK_GRAY, (base_rect.x + 3, base_rect.bottom - 6, self.size - 6, 6), border_radius=2)
+            elif self.enemy_type == 'shooter':
+                pygame.draw.rect(screen, ORANGE, base_rect, border_radius=3)
+                visor = pygame.Rect(base_rect.x + 3, base_rect.y + 6, self.size - 6, 6)
+                pygame.draw.rect(screen, DARK_GRAY, visor, border_radius=2)
+            else:  # stationary
+                pygame.draw.rect(screen, PURPLE, base_rect, border_radius=3)
+                pygame.draw.rect(screen, DARK_GRAY, (base_rect.x + 2, base_rect.bottom - 5, self.size - 4, 4), border_radius=2)
+
+            pygame.draw.rect(screen, WHITE, base_rect, width=1, border_radius=3)
